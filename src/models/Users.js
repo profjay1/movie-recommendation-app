@@ -1,8 +1,10 @@
+// src/models/User.js (Mongoose example)
 import mongoose from 'mongoose';
-const UserSchema = new mongoose.Schema({
-  name:   { type: String, required: true },
-  email:  { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  favorites: [{ type: Number }] // TMDB movie IDs
-});
-export default mongoose.model('User', UserSchema);
+
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true, maxlength: 100 },
+  email: { type: String, required: true, unique: true, index: true },
+  password: { type: String, required: true, select: false } // select:false hides password by default
+}, { timestamps: true });
+
+export default mongoose.model('User', userSchema);
