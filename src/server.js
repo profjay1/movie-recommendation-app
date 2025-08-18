@@ -1,6 +1,7 @@
 // src/server.js
 import express from 'express';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import movieRoutes from './routes/movies.js';
@@ -15,15 +16,77 @@ app.use('/api/movies', movieRoutes);
 // PORT with fallback
 const PORT = process.env.PORT || 3000;
 
+/**
+ * Setup global process & mongoose handlers for graceful shutdown and better logs.
+ * Call setupProcessHandlers(server) after server is created.
+ */
+function setupProcessHandlers(server) {
+  // Graceful shutdown helper
+  const shutdown = async (signal) => {
+    try {
+      console.log(`\nReceived ${signal}. Graceful shutdown starting...`);
+
+      // Stop accepting new connections
+      if (server && server.close) {
+        await new Promise((resolve, reject) => {
+          server.close((err) => {
+            if (err) return reject(err);
+            console.log('HTTP server closed');
+            resolve();
+          });
+        });
+      }
+
+      // Disconnect mongoose
+      try {
+        await mongoose.disconnect();
+        console.log('Mongoose disconnected');
+      } catch (e) {
+        console.warn('Error disconnecting mongoose:', e);
+      }
+
+      console.log('Shutdown complete, exiting.');
+      process.exit(0);
+    } catch (err) {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    }
+  };
+
+  // Listen for kill signals
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+  // Uncaught exceptions and unhandled promise rejections
+  process.on('uncaughtException', (err) => {
+    console.error('UNCAUGHT EXCEPTION - shutting down:', err);
+    shutdown('uncaughtException');
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('UNHANDLED REJECTION at:', promise, 'reason:', reason);
+    shutdown('unhandledRejection');
+  });
+
+  // Mongoose connection events (helpful for debugging)
+  mongoose.connection.on('error', (err) => console.error('Mongoose connection error:', err));
+  mongoose.connection.on('disconnected', () => console.warn('Mongoose disconnected'));
+  mongoose.connection.on('reconnected', () => console.log('Mongoose reconnected'));
+}
+
 // Start DB and server in a controlled way
 async function start() {
   try {
     await connectDB();
+
     // Only start listening when not running tests (Jest, etc.)
     if (process.env.NODE_ENV !== 'test') {
-      app.listen(PORT, () => {
+      const server = app.listen(PORT, () => {
         console.log(`Backend listening on http://localhost:${PORT} (pid ${process.pid})`);
       });
+
+      // attach global handlers so they have access to the server instance
+      setupProcessHandlers(server);
     } else {
       console.log('Running in test mode — server not auto-started');
     }
