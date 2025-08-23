@@ -1,5 +1,6 @@
 // src/server.js
 import express from 'express';
+import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
@@ -7,11 +8,32 @@ import authRoutes from './routes/auth.js';
 import movieRoutes from './routes/movies.js';
 
 dotenv.config();
-
 const app = express();
+
+
+// CORS: restrict to your Vercel domain(s) in production
+const allowedOrigins = [
+  'https://movie-reco-frontend-sable.vercel.app',
+  'https://movie-reco-frontend-git-main-technodevstacks-gmailcoms-projects.vercel.app',
+  // add 'http://localhost:5173' for local dev if you want
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // allow requests with no origin (e.g. curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS policy: This origin is not allowed'), false);
+  }
+}));
+
+// Optional: explicitly handle preflight for all routes
+app.options('*', cors());
+
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/movies', movieRoutes);
+//app.use(cors()); // allow all origins (or configure specific origin)
 
 // PORT with fallback
 const PORT = process.env.PORT || 3000;
