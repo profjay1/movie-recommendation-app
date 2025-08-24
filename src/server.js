@@ -15,7 +15,7 @@ const app = express();
 const allowedOrigins = [
   'https://movie-reco-frontend-sable.vercel.app',
   'https://movie-reco-frontend-git-main-technodevstacks-gmailcoms-projects.vercel.app',
-  // add 'http://localhost:5173' for local dev if you want
+  'http://localhost:5173'
 ];
 
 app.use(cors({
@@ -24,7 +24,10 @@ app.use(cors({
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('CORS policy: This origin is not allowed'), false);
-  }
+  },
+  
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  credentials: true
 }));
 
 // Optional: explicitly handle preflight for all routes
