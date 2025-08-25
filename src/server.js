@@ -1,50 +1,65 @@
 // src/server.js
 import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
+import cors from 'cors';
 import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import movieRoutes from './routes/movies.js';
 
 dotenv.config();
+
 const app = express();
 
-
-// CORS: restrict to your Vercel domain(s) in production
-const allowedOrigins = [
+// ---------- CORS setup (whitelist) ----------
+// You can provide a comma-separated list in ALLOWED_ORIGINS env var.
+// Example: ALLOWED_ORIGINS="https://my-frontend.vercel.app,http://localhost:5173"
+const defaultOrigins = [
   'https://movie-reco-frontend-sable.vercel.app',
   'https://movie-reco-frontend-git-main-technodevstacks-gmailcoms-projects.vercel.app',
-  'http://localhost:5173'
+  'http://localhost:5173', // local dev (Vite default)
 ];
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  : defaultOrigins;
 
 app.use(cors({
   origin: (origin, callback) => {
-    // allow requests with no origin (e.g. curl, server-to-server)
+    // allow requests with no origin (curl, server-to-server)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('CORS policy: This origin is not allowed'), false);
   },
-  
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   credentials: true
 }));
 
-// Optional: explicitly handle preflight for all routes
+// ensure preflight requests are handled
 app.options('*', cors());
 
+// ---------- Middleware & routes ----------
 app.use(express.json());
+
 app.use('/api/auth', authRoutes);
 app.use('/api/movies', movieRoutes);
-//app.use(cors()); // allow all origins (or configure specific origin)
 
-// PORT with fallback
-const PORT = process.env.PORT || 3000;
+// 404 handler
+app.use((req, res, next) => {
+  res.status(404).json({ error: 'Route not found' });
+});
 
-/**
- * Setup global process & mongoose handlers for graceful shutdown and better logs.
- * Call setupProcessHandlers(server) after server is created.
- */
+// Central error handler (keeps returned JSON consistent)
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err && (err.stack || err));
+  // If CORS middleware rejected the origin, return 403 with message
+  if (err && err.message && err.message.startsWith('CORS policy')) {
+    return res.status(403).json({ error: err.message });
+  }
+  res.status(err?.status || 500).json({ error: err?.message || 'Internal server error' });
+});
+
+// ---------- Graceful shutdown helpers ----------
 function setupProcessHandlers(server) {
   // Graceful shutdown helper
   const shutdown = async (signal) => {
@@ -78,11 +93,9 @@ function setupProcessHandlers(server) {
     }
   };
 
-  // Listen for kill signals
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-  // Uncaught exceptions and unhandled promise rejections
   process.on('uncaughtException', (err) => {
     console.error('UNCAUGHT EXCEPTION - shutting down:', err);
     shutdown('uncaughtException');
@@ -93,35 +106,31 @@ function setupProcessHandlers(server) {
     shutdown('unhandledRejection');
   });
 
-  // Mongoose connection events (helpful for debugging)
   mongoose.connection.on('error', (err) => console.error('Mongoose connection error:', err));
   mongoose.connection.on('disconnected', () => console.warn('Mongoose disconnected'));
   mongoose.connection.on('reconnected', () => console.log('Mongoose reconnected'));
 }
 
-// Start DB and server in a controlled way
+// ---------- Start server (connect DB first) ----------
+const PORT = process.env.PORT || 3000;
+
 async function start() {
   try {
-    await connectDB();
-
-    // Only start listening when not running tests (Jest, etc.)
+    await connectDB(); // assumes ./config/db.js exports connectDB()
     if (process.env.NODE_ENV !== 'test') {
       const server = app.listen(PORT, () => {
         console.log(`Backend listening on http://localhost:${PORT} (pid ${process.pid})`);
       });
-
-      // attach global handlers so they have access to the server instance
       setupProcessHandlers(server);
     } else {
       console.log('Running in test mode — server not auto-started');
     }
   } catch (err) {
     console.error('Failed to start app:', err);
-    process.exit(1); // non-zero exit on fatal startup error
+    process.exit(1);
   }
 }
 
-// call start()
 start();
 
-export default app; // for testing
+export default app;
