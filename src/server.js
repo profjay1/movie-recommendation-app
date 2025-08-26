@@ -7,6 +7,11 @@ import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import movieRoutes from './routes/movies.js';
 
+console.log('>>> STARTING src/server.js');
+console.log('NODE_ENV =', process.env.NODE_ENV);
+console.log('PORT =', process.env.PORT);
+
+
 dotenv.config();
 
 const app = express();
@@ -37,11 +42,18 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(cors());
 
+console.log('>>> CORS middleware configured with allowedOrigins:', JSON.stringify(allowedOrigins));
+
 // ensure preflight requests are handled
 app.options('*', cors());
 
 // ---------- Middleware & routes ----------
 app.use(express.json());
+
+app.use((req, res, next) => {
+  console.log('incoming request:', req.method, req.originalUrl, 'Origin:', req.headers.origin);
+  next();
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/movies', movieRoutes);
