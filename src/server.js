@@ -24,7 +24,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
   : defaultOrigins;
 
-app.use(cors({
+/*app.use(cors({
   origin: (origin, callback) => {
     // allow requests with no origin (curl, server-to-server)
     if (!origin) return callback(null, true);
@@ -33,7 +33,9 @@ app.use(cors({
   },
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
   credentials: true
-}));
+})); */
+
+app.use(cors());
 
 // ensure preflight requests are handled
 app.options('*', cors());
