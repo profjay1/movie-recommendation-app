@@ -7,9 +7,24 @@ import { connectDB } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import movieRoutes from './routes/movies.js';
 
-console.log('>>> STARTING src/server.js');
-console.log('NODE_ENV =', process.env.NODE_ENV);
-console.log('PORT =', process.env.PORT);
+// DEBUG STARTUP MARKER (temporary)
+console.log('DEPLOY_MARKER_START: edaecea'); // <-- unique string to find in Railway logs
+console.log('NODE_ENV =', process.env.NODE_ENV, 'PORT =', process.env.PORT);
+
+// quick debug CORS override + request logger (temporary, safe)
+import cors from 'cors';
+app.use(cors());               // permissive for debug only
+app.options('*', cors());
+app.use((req, res, next) => {
+  console.log('DBG_REQ:', req.method, req.originalUrl, 'Origin:', req.headers.origin);
+  // also set explicit headers (helpful if something strips them)
+  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 
 
 dotenv.config();
